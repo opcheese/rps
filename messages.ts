@@ -18,18 +18,26 @@ enum OpCode {
 	REJECTED = 5
 }
 
-type BoardPosition = 0|1|2|3|4|5|6|7|8
+enum Val {
+
+	ROCK = 1,
+
+	PAPER = 2,
+
+	SCISSORS = 3,
+
+}
+
 type Message = StartMessage|UpdateMessage|DoneMessage|MoveMessage|RpcFindMatchRequest|RpcFindMatchResponse
-type Board = (Mark|null)[]
+type Board = (Val|null)[]
 
 // Message data sent by server to clients representing a new game round starting.
 interface StartMessage {
     // The current state of the board.
     board: Board
     // The assignments of the marks to players for this round.
-    marks: {[userID: string]: Mark | null}
-    // Whose turn it is to play.
-    mark: Mark
+    marks: {[userID: string]: number|null}
+
     // The deadline time by which the player must submit their move, or forfeit.
     deadline: number
 }
@@ -39,7 +47,7 @@ interface UpdateMessage {
     // The current state of the board.
     board: Board
     // Whose turn it is to play.
-    mark: Mark
+    stage: number
     // The deadline time by which the player must submit their move, or forfeit.
     deadline: number
 }
@@ -49,10 +57,7 @@ interface DoneMessage {
     // The final state of the board.
     board: Board
     // The winner of the game, if any. Unspecified if it's a draw.
-    winner: Mark | null
-    // Winner board positions, if any. Used to display the row, column, or diagonal that won the game.
-    // May be empty if it's a draw or the winner is by forfeit.
-    winnerPositions: BoardPosition[] | null
+    winner: number | null    
     // Next round start time.
     nextGameStart: number
 }
@@ -60,7 +65,7 @@ interface DoneMessage {
 // A player intends to make a move.
 interface MoveMessage {
     // The position the player wants to place their mark in.
-    position: BoardPosition;
+    position: Val;
 }
 
 // Payload for an RPC request to find a match.
