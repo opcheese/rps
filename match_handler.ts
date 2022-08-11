@@ -39,8 +39,12 @@ interface State {
     playing: boolean
     // Current state of the board.
     board: Board
+    boardNum: number
+
     // Mark assignments to player user IDs.
     marks: {[userId: string]: number | null}
+    hands: {[userId: string]: Hand | null}
+
    
     // Ticks until they must submit their move.
     deadlineRemainingTicks: number
@@ -55,6 +59,8 @@ interface State {
     nextGameRemainingTicks: number
 
     altmessage?: string
+    
+
 }
 
 let matchInit: nkruntime.MatchInitFunction<State> = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, params: {[key: string]: string}) {
@@ -75,7 +81,9 @@ let matchInit: nkruntime.MatchInitFunction<State> = function (ctx: nkruntime.Con
         joinsInProgress: 0,
         playing: false,
         board: [],
+        boardNum:-1,
         marks: {},
+        hands:{},
         deadlineRemainingTicks: 0,
         winner: null,
         winnerId: null,
@@ -242,15 +250,31 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
         let response = nk.httpRequest(url, 'get');
         logger.debug("requested");        
 
-        state.altmessage = response.body;   
-        logger.debug("got " +state.altmessage);        
+        state.altmessage = response.body;  
+        let parsed = JSON.parse(state.altmessage);
+        logger.debug("got " +JSON.stringify(parsed));  
+        let hstr: string = parsed.left;
+        hstr = hstr.trim().substring(1,hstr.trim().length-1)
+        let hs = hstr.split(',').map(x=>parseInt(x))
+        let lefthand: Hand = hs;
+
+        hstr = parsed.right;
+        hstr = hstr.trim().substring(1,hstr.trim().length-1)
+        hs = hstr.split(',').map(x=>parseInt(x))
+        let righthand: Hand = hs;
+        state.board = [lefthand,righthand]
+        state.boardNum = parseInt(parsed.num);
+
+
+             
 
         state.playing = true;
         state.board = new Array(2);
         state.marks = {};
         let nums = [0,1];
-        Object.keys(state.presences).forEach(userId => {
-            state.marks[userId] = nums.shift() ?? null;
+        Object.keys(state.presences).forEach((userId,ind) => {
+            state.marks[userId] = nums[ind];//nums.shift() ?? null;
+            state.hands[userId] = state.board[ind]
         });
         logger.debug('presences:' + JSON.stringify(state.marks));        
         state.winner = null;
@@ -258,13 +282,14 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
         state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
         state.nextGameRemainingTicks = 0;
 
+        let cou = -1;
         for (let key in state.marks) {
+            
             // Notify the players a new game has started.
-            let msg: StartMessage = {
-                board: state.board,
-                marks: state.marks,            
-                deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
-                hand:[state.marks[key]??-1]
+            let msg: StartMessage = {                
+                marks: state.marks,  
+                hand: state.hands[key],      
+                deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),                
             }
 
             let press = null;
@@ -315,7 +340,7 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
 
                 
                 // Update the game state.
-                state.board[mark] = msg.position;
+                //state.board[mark] = msg.position;
                 
                 state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
 
@@ -437,44 +462,7 @@ function winCheck(board: Board, mark: Mark): [boolean, number] {
     let res0 = [false, -1];
     let res1 = [true, 0];
     let res2 = [true, 1];
-
-
-    if (board[0] == Val.PAPER) {
-        if (board[1] == Val.PAPER) {
-            return [false, -1];
-        }
-        if (board[1] == Val.ROCK) {
-            return [true, 0];
-        } 
-        if (board[1] == Val.SCISSORS) {
-            return [true, 1];
-        }  
-    }
-
-    if (board[0] == Val.ROCK) {
-        if (board[1] == Val.ROCK) {
-            return [false, -1];
-        }
-        if (board[1] == Val.PAPER) {
-            return [true, 1];
-        } 
-        if (board[1] == Val.SCISSORS) {
-            return [true, 0];
-        }  
-    }
-
-    if (board[0] == Val.SCISSORS) {
-        if (board[1] == Val.SCISSORS) {
-            return [false, -1];
-        }
-        if (board[1] == Val.ROCK) {
-            return [true, 1];
-        } 
-        if (board[1] == Val.PAPER) {
-            return [true, 0];
-        }  
-    }
-
+    
     return [false, -1];
 }
 

@@ -190,7 +190,9 @@ var matchInit = function (ctx, logger, nk, params) {
         joinsInProgress: 0,
         playing: false,
         board: [],
+        boardNum: -1,
         marks: {},
+        hands: {},
         deadlineRemainingTicks: 0,
         winner: null,
         winnerId: null,
@@ -289,7 +291,7 @@ var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) 
 var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
     //logger.debug('Running match loop. Tick: %d', tick);
     //logger.debug('Playing:'+state.playing);
-    var _a, _b;
+    var _a;
     if (connectedPlayers(state) + state.joinsInProgress === 0) {
         state.emptyTicks++;
         if (state.emptyTicks >= maxEmptySec * tickRate) {
@@ -330,27 +332,38 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         var response = nk.httpRequest(url, 'get');
         logger.debug("requested");
         state.altmessage = response.body;
+        var parsed = JSON.parse(state.altmessage);
         logger.debug("got " + state.altmessage);
+        var hstr = parsed.left;
+        hstr = hstr.trim().substring(1, hstr.trim().length - 1);
+        var hs = hstr.split(',').map(function (x) { return parseInt(x); });
+        var lefthand = hs;
+        hstr = parsed.right;
+        hstr = hstr.trim().substring(1, hstr.trim().length - 1);
+        hs = hstr.split(',').map(function (x) { return parseInt(x); });
+        var righthand = hs;
+        state.board = [lefthand, righthand];
+        state.boardNum = parseInt(parsed.num);
         state.playing = true;
         state.board = new Array(2);
         state.marks = {};
         var nums_1 = [0, 1];
-        Object.keys(state.presences).forEach(function (userId) {
-            var _a;
-            state.marks[userId] = (_a = nums_1.shift()) !== null && _a !== void 0 ? _a : null;
+        Object.keys(state.presences).forEach(function (userId, ind) {
+            state.marks[userId] = nums_1[ind]; //nums.shift() ?? null;
+            state.hands[userId] = state.board[ind];
         });
         logger.debug('presences:' + JSON.stringify(state.marks));
         state.winner = null;
         state.winnerId = null;
         state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
         state.nextGameRemainingTicks = 0;
+        var cou = -1;
         for (var key in state.marks) {
             // Notify the players a new game has started.
             var msg = {
-                board: state.board,
                 marks: state.marks,
+                hand: state.hands[key],
                 deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
-                hand: [(_a = state.marks[key]) !== null && _a !== void 0 ? _a : -1]
             };
             var press = null;
             if (state.presences[key] !== null) {
@@ -366,7 +379,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         switch (message.opCode) {
             case OpCode.MOVE:
                 logger.debug('Received move message from user: %v', state.marks);
-                var mark = (_b = state.marks[message.sender.userId]) !== null && _b !== void 0 ? _b : null;
+                var mark = (_a = state.marks[message.sender.userId]) !== null && _a !== void 0 ? _a : null;
                 var msg = {};
                 try {
                     //logger.debug('Not Bad data receivedv: %v', message.data);
@@ -392,11 +405,11 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 logger.debug('New position PLAYER:' + mark);
                 logger.debug('New position VALUE:' + msg.position);
                 // Update the game state.
-                state.board[mark] = msg.position;
+                //state.board[mark] = msg.position;
                 state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
                 // Check if game is over through a winning move.
                 if (state.board[0] != null && state.board[1] != null) {
-                    var _c = winCheck(state.board, mark), winner = _c[0], winningPos = _c[1];
+                    var _b = winCheck(state.board, mark), winner = _b[0], winningPos = _b[1];
                     if (winner) {
                         state.winner = winningPos;
                         state.winnerId = null;
@@ -503,39 +516,6 @@ function winCheck(board, mark) {
     var res0 = [false, -1];
     var res1 = [true, 0];
     var res2 = [true, 1];
-    if (board[0] == Val.PAPER) {
-        if (board[1] == Val.PAPER) {
-            return [false, -1];
-        }
-        if (board[1] == Val.ROCK) {
-            return [true, 0];
-        }
-        if (board[1] == Val.SCISSORS) {
-            return [true, 1];
-        }
-    }
-    if (board[0] == Val.ROCK) {
-        if (board[1] == Val.ROCK) {
-            return [false, -1];
-        }
-        if (board[1] == Val.PAPER) {
-            return [true, 1];
-        }
-        if (board[1] == Val.SCISSORS) {
-            return [true, 0];
-        }
-    }
-    if (board[0] == Val.SCISSORS) {
-        if (board[1] == Val.SCISSORS) {
-            return [false, -1];
-        }
-        if (board[1] == Val.ROCK) {
-            return [true, 1];
-        }
-        if (board[1] == Val.PAPER) {
-            return [true, 0];
-        }
-    }
     return [false, -1];
 }
 function connectedPlayers(s) {
