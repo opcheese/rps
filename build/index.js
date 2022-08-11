@@ -149,6 +149,12 @@ var OpCode;
     // Move was rejected.
     OpCode[OpCode["REJECTED"] = 5] = "REJECTED";
 })(OpCode || (OpCode = {}));
+var Val;
+(function (Val) {
+    Val[Val["ROCK"] = 1] = "ROCK";
+    Val[Val["PAPER"] = 2] = "PAPER";
+    Val[Val["SCISSORS"] = 3] = "SCISSORS";
+})(Val || (Val = {}));
 // Copyright 2020 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -162,22 +168,12 @@ var OpCode;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-var moduleName = "tic-tac-toe_js";
-var tickRate = 5;
-var maxEmptySec = 30;
+var moduleName = "rps_js";
+var tickRate = 1;
+var maxEmptySec = 300;
 var delaybetweenGamesSec = 5;
 var turnTimeFastSec = 10;
-var turnTimeNormalSec = 20;
-var winningPositions = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-];
+var turnTimeNormalSec = 200;
 var matchInit = function (ctx, logger, nk, params) {
     var fast = !!params['fast'];
     var label = {
@@ -195,11 +191,11 @@ var matchInit = function (ctx, logger, nk, params) {
         playing: false,
         board: [],
         marks: {},
-        mark: Mark.UNDEFINED,
         deadlineRemainingTicks: 0,
         winner: null,
-        winnerPositions: null,
+        winnerId: null,
         nextGameRemainingTicks: 0,
+        stage: 0,
     };
     return {
         state: state,
@@ -253,8 +249,8 @@ var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
         if (state.playing) {
             // There's a game still currently in progress, the player is re-joining after a disconnect. Give them a state update.
             var update = {
+                stage: state.stage,
                 board: state.board,
-                mark: state.mark,
                 deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
             };
             // Send a message to the user that just joined.
@@ -267,7 +263,7 @@ var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
             var done = {
                 board: state.board,
                 winner: state.winner,
-                winnerPositions: state.winnerPositions,
+                winnerId: state.winnerId,
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate)
             };
             // Send a message to the user that just joined.
@@ -291,8 +287,9 @@ var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) 
     return { state: state };
 };
 var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
-    var _a;
-    logger.debug('Running match loop. Tick: %d', tick);
+    //logger.debug('Running match loop. Tick: %d', tick);
+    //logger.debug('Playing:'+state.playing);
+    var _a, _b;
     if (connectedPlayers(state) + state.joinsInProgress === 0) {
         state.emptyTicks++;
         if (state.emptyTicks >= maxEmptySec * tickRate) {
@@ -320,33 +317,47 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         if (Object.keys(state.presences).length < 2) {
             return { state: state };
         }
+        //logger.debug('Remaining till next:'+state.nextGameRemainingTicks);
         // Check if enough time has passed since the last game.
         if (state.nextGameRemainingTicks > 0) {
             state.nextGameRemainingTicks--;
             return { state: state };
         }
         // We can start a game! Set up the game state and assign the marks to each player.
+        logger.debug('Starting:');
+        var url = "http://host.docker.internal/GameEngineServer/hands";
+        //let headers = { 'Accept': 'application/json' };
+        var response = nk.httpRequest(url, 'get');
+        logger.debug("requested");
+        state.altmessage = response.body;
+        logger.debug("got " + state.altmessage);
         state.playing = true;
-        state.board = new Array(9);
+        state.board = new Array(2);
         state.marks = {};
-        var marks_1 = [Mark.X, Mark.O];
+        var nums_1 = [0, 1];
         Object.keys(state.presences).forEach(function (userId) {
             var _a;
-            state.marks[userId] = (_a = marks_1.shift()) !== null && _a !== void 0 ? _a : null;
+            state.marks[userId] = (_a = nums_1.shift()) !== null && _a !== void 0 ? _a : null;
         });
-        state.mark = Mark.X;
+        logger.debug('presences:' + JSON.stringify(state.marks));
         state.winner = null;
-        state.winnerPositions = null;
+        state.winnerId = null;
         state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
         state.nextGameRemainingTicks = 0;
-        // Notify the players a new game has started.
-        var msg = {
-            board: state.board,
-            marks: state.marks,
-            mark: state.mark,
-            deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
-        };
-        dispatcher.broadcastMessage(OpCode.START, JSON.stringify(msg));
+        for (var key in state.marks) {
+            // Notify the players a new game has started.
+            var msg = {
+                board: state.board,
+                marks: state.marks,
+                deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
+                hand: [(_a = state.marks[key]) !== null && _a !== void 0 ? _a : -1]
+            };
+            var press = null;
+            if (state.presences[key] !== null) {
+                var press1 = state.presences[key];
+                dispatcher.broadcastMessage(OpCode.START, JSON.stringify(msg), [press1]);
+            }
+        }
         return { state: state };
     }
     // There's a game in progresstate. Check for input, update match state, and send messages to clientstate.
@@ -355,47 +366,60 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         switch (message.opCode) {
             case OpCode.MOVE:
                 logger.debug('Received move message from user: %v', state.marks);
-                var mark = (_a = state.marks[message.sender.userId]) !== null && _a !== void 0 ? _a : null;
-                if (mark === null || state.mark != mark) {
-                    // It is not this player's turn.
-                    dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                    continue;
-                }
+                var mark = (_b = state.marks[message.sender.userId]) !== null && _b !== void 0 ? _b : null;
                 var msg = {};
                 try {
-                    msg = JSON.parse(nk.binaryToString(message.data));
+                    //logger.debug('Not Bad data receivedv: %v', message.data);
+                    var st = nk.binaryToString(message.data);
+                    logger.debug('Not Bad data receiveds: %s', st);
+                    msg = JSON.parse(st);
                 }
                 catch (error) {
                     // Client sent bad data.
                     dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                    logger.debug('Bad data received: %v', error);
+                    logger.debug('Bad data receiveda: %v', error);
                     continue;
                 }
-                if (state.board[msg.position]) {
+                if (mark === null || state.board[mark]) {
+                    logger.debug('rejected' + mark);
+                    if (mark) {
+                        logger.debug('rejected' + state.board[mark]);
+                    }
                     // Client sent a position outside the board, or one that has already been played.
                     dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
                     continue;
                 }
+                logger.debug('New position PLAYER:' + mark);
+                logger.debug('New position VALUE:' + msg.position);
                 // Update the game state.
-                state.board[msg.position] = mark;
-                state.mark = mark === Mark.O ? Mark.X : Mark.O;
+                state.board[mark] = msg.position;
                 state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
                 // Check if game is over through a winning move.
-                var _b = winCheck(state.board, mark), winner = _b[0], winningPos = _b[1];
-                if (winner) {
-                    state.winner = mark;
-                    state.winnerPositions = winningPos;
-                    state.playing = false;
-                    state.deadlineRemainingTicks = 0;
-                    state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-                }
-                // Check if game is over because no more moves are possible.
-                var tie = state.board.every(function (v) { return v !== null; });
-                if (tie) {
-                    // Update state to reflect the tie, and schedule the next game.
-                    state.playing = false;
-                    state.deadlineRemainingTicks = 0;
-                    state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                if (state.board[0] != null && state.board[1] != null) {
+                    var _c = winCheck(state.board, mark), winner = _c[0], winningPos = _c[1];
+                    if (winner) {
+                        state.winner = winningPos;
+                        state.winnerId = null;
+                        for (var key in state.marks) {
+                            if (state.marks[key] == winningPos) {
+                                state.winnerId = key;
+                                break;
+                            }
+                        }
+                        state.playing = false;
+                        state.deadlineRemainingTicks = 0;
+                        state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                        logger.debug('Winner:' + winningPos);
+                    }
+                    // Check if game is over because no more moves are possible.
+                    var tie = !winner;
+                    if (tie) {
+                        // Update state to reflect the tie, and schedule the next game.
+                        state.playing = false;
+                        state.deadlineRemainingTicks = 0;
+                        state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                        logger.debug('Tie:');
+                    }
                 }
                 var opCode = void 0;
                 var outgoingMsg = void 0;
@@ -403,7 +427,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                     opCode = OpCode.UPDATE;
                     var msg_1 = {
                         board: state.board,
-                        mark: state.mark,
+                        stage: 1,
                         deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
                     };
                     outgoingMsg = msg_1;
@@ -413,10 +437,11 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                     var msg_2 = {
                         board: state.board,
                         winner: state.winner,
-                        winnerPositions: state.winnerPositions,
+                        winnerId: state.winnerId,
                         nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate),
                     };
                     outgoingMsg = msg_2;
+                    logger.debug('board:', JSON.stringify(state.board));
                 }
                 dispatcher.broadcastMessage(opCode, JSON.stringify(outgoingMsg));
                 break;
@@ -432,16 +457,30 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         if (state.deadlineRemainingTicks <= 0) {
             // The player has run out of time to submit their move.
             state.playing = false;
-            state.winner = state.mark === Mark.O ? Mark.X : Mark.O;
+            var winner = -1;
+            if (state.board[0] === state.board[1] && state.board[0] === null) {
+            }
+            else {
+                if (state.board[0] === null) {
+                    winner = 1;
+                }
+                else {
+                    winner = 0;
+                }
+            }
+            state.winner = winner;
             state.deadlineRemainingTicks = 0;
             state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
             var msg = {
                 board: state.board,
                 winner: state.winner,
+                winnerId: state.winnerId,
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate),
-                winnerPositions: null,
             };
             dispatcher.broadcastMessage(OpCode.DONE, JSON.stringify(msg));
+        }
+        else {
+            //logger.debug('Ticks remaining:'+ state.deadlineRemainingTicks);
         }
     }
     return { state: state };
@@ -461,15 +500,43 @@ function calculateDeadlineTicks(l) {
     }
 }
 function winCheck(board, mark) {
-    for (var _i = 0, winningPositions_1 = winningPositions; _i < winningPositions_1.length; _i++) {
-        var wp = winningPositions_1[_i];
-        if (board[wp[0]] === mark &&
-            board[wp[1]] === mark &&
-            board[wp[2]] === mark) {
-            return [true, wp];
+    var res0 = [false, -1];
+    var res1 = [true, 0];
+    var res2 = [true, 1];
+    if (board[0] == Val.PAPER) {
+        if (board[1] == Val.PAPER) {
+            return [false, -1];
+        }
+        if (board[1] == Val.ROCK) {
+            return [true, 0];
+        }
+        if (board[1] == Val.SCISSORS) {
+            return [true, 1];
         }
     }
-    return [false, null];
+    if (board[0] == Val.ROCK) {
+        if (board[1] == Val.ROCK) {
+            return [false, -1];
+        }
+        if (board[1] == Val.PAPER) {
+            return [true, 1];
+        }
+        if (board[1] == Val.SCISSORS) {
+            return [true, 0];
+        }
+    }
+    if (board[0] == Val.SCISSORS) {
+        if (board[1] == Val.SCISSORS) {
+            return [false, -1];
+        }
+        if (board[1] == Val.ROCK) {
+            return [true, 1];
+        }
+        if (board[1] == Val.PAPER) {
+            return [true, 0];
+        }
+    }
+    return [false, -1];
 }
 function connectedPlayers(s) {
     var count = 0;

@@ -30,13 +30,16 @@ enum Val {
 
 type Message = StartMessage|UpdateMessage|DoneMessage|MoveMessage|RpcFindMatchRequest|RpcFindMatchResponse
 type Board = (Val|null)[]
+type Hand = (number)[]
 
 // Message data sent by server to clients representing a new game round starting.
 interface StartMessage {
     // The current state of the board.
     board: Board
     // The assignments of the marks to players for this round.
-    marks: {[userID: string]: number|null}
+    marks: {[userID: string]: number|null},
+
+    hand: Hand
 
     // The deadline time by which the player must submit their move, or forfeit.
     deadline: number
@@ -57,7 +60,8 @@ interface DoneMessage {
     // The final state of the board.
     board: Board
     // The winner of the game, if any. Unspecified if it's a draw.
-    winner: number | null    
+    winner: number | null
+    winnerId: string | null    
     // Next round start time.
     nextGameStart: number
 }

@@ -13,11 +13,12 @@
 // limitations under the License.
 
 const moduleName = "rps_js";
-const tickRate = 5;
-const maxEmptySec = 30;
+const tickRate = 1;
+const maxEmptySec = 300;
 const delaybetweenGamesSec = 5;
 const turnTimeFastSec = 10;
-const turnTimeNormalSec = 20;
+const turnTimeNormalSec = 200;
+//import { SyncRequestClient } from 'ts-sync-request/dist'
 
 
 interface MatchLabel {
@@ -46,10 +47,14 @@ interface State {
     // The winner of the current game.
     winner: number | null
 
+    winnerId: string | null
+
     stage: number
 
     // Ticks until the next game starts, if applicable.
     nextGameRemainingTicks: number
+
+    altmessage?: string
 }
 
 let matchInit: nkruntime.MatchInitFunction<State> = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, params: {[key: string]: string}) {
@@ -73,6 +78,7 @@ let matchInit: nkruntime.MatchInitFunction<State> = function (ctx: nkruntime.Con
         marks: {},
         deadlineRemainingTicks: 0,
         winner: null,
+        winnerId: null,
         nextGameRemainingTicks: 0,
         stage: 0,
     }
@@ -151,7 +157,8 @@ let matchJoin: nkruntime.MatchJoinFunction<State> = function(ctx: nkruntime.Cont
             // They likely disconnected before the game ended, and have since forfeited because they took too long to return.
             let done: DoneMessage = {
                 board: state.board,
-                winner: state.winner,                
+                winner: state.winner,    
+                winnerId: state.winnerId,            
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks/tickRate)
             }
             // Send a message to the user that just joined.
@@ -185,7 +192,9 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
       nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, 
       tick: number, state: State, 
       messages: nkruntime.MatchMessage[]) {
-    logger.debug('Running match loop. Tick: %d', tick);
+    //logger.debug('Running match loop. Tick: %d', tick);
+    //logger.debug('Playing:'+state.playing);
+    
     if (connectedPlayers(state) + state.joinsInProgress === 0) {
         state.emptyTicks++;
         if (state.emptyTicks >= maxEmptySec * tickRate) {
@@ -218,6 +227,8 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
             return { state };
         }
 
+        //logger.debug('Remaining till next:'+state.nextGameRemainingTicks);
+
         // Check if enough time has passed since the last game.
         if (state.nextGameRemainingTicks > 0) {
             state.nextGameRemainingTicks--
@@ -225,24 +236,45 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
         }
 
         // We can start a game! Set up the game state and assign the marks to each player.
+        logger.debug('Starting:');        
+        let url = "http://host.docker.internal/GameEngineServer/hands";
+        //let headers = { 'Accept': 'application/json' };
+        let response = nk.httpRequest(url, 'get');
+        logger.debug("requested");        
+
+        state.altmessage = response.body;   
+        logger.debug("got " +state.altmessage);        
+
         state.playing = true;
         state.board = new Array(2);
         state.marks = {};
         let nums = [0,1];
         Object.keys(state.presences).forEach(userId => {
             state.marks[userId] = nums.shift() ?? null;
-        });        
-        state.winner = null;        
+        });
+        logger.debug('presences:' + JSON.stringify(state.marks));        
+        state.winner = null;
+        state.winnerId = null;        
         state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
         state.nextGameRemainingTicks = 0;
 
-        // Notify the players a new game has started.
-        let msg: StartMessage = {
-            board: state.board,
-            marks: state.marks,            
-            deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
+        for (let key in state.marks) {
+            // Notify the players a new game has started.
+            let msg: StartMessage = {
+                board: state.board,
+                marks: state.marks,            
+                deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
+                hand:[state.marks[key]??-1]
+            }
+
+            let press = null;
+            
+            if (state.presences[key]!==null) {
+                let press1 = state.presences[key];            
+                dispatcher.broadcastMessage(OpCode.START, JSON.stringify(msg),[press1!!]);
+            }
+            
         }
-        dispatcher.broadcastMessage(OpCode.START, JSON.stringify(msg));
 
         return { state };
     }
@@ -252,43 +284,70 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
         switch (message.opCode) {
             case OpCode.MOVE:
                 logger.debug('Received move message from user: %v', state.marks);
+                
                 let mark = state.marks[message.sender.userId] ?? null;               
 
                 let msg = {} as MoveMessage;
                 try {
-                    msg = JSON.parse(nk.binaryToString(message.data));
+                    //logger.debug('Not Bad data receivedv: %v', message.data);
+
+                    let st = nk.binaryToString(message.data);
+                    logger.debug('Not Bad data receiveds: %s', st);
+                    msg = JSON.parse(st);
                 } catch (error) {
                     // Client sent bad data.
                     dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
-                    logger.debug('Bad data received: %v', error);
+                    logger.debug('Bad data receiveda: %v', error);
                     continue;
                 }
                 if (mark===null || state.board[mark]) {
+                    logger.debug('rejected'+ mark);
+                    if (mark){
+                        logger.debug('rejected'+ state.board[mark]);
+                    }
+
                     // Client sent a position outside the board, or one that has already been played.
                     dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
                     continue;
                 }
+                logger.debug('New position PLAYER:'+mark);
+                logger.debug('New position VALUE:'+msg.position);
 
+                
                 // Update the game state.
                 state.board[mark] = msg.position;
                 
                 state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
 
                 // Check if game is over through a winning move.
-                const [winner, winningPos] = winCheck(state.board, mark);
-                if (winner) {
-                    state.winner = winningPos;
-                    state.playing = false;
-                    state.deadlineRemainingTicks = 0;
-                    state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-                }
-                // Check if game is over because no more moves are possible.
-                let tie = state.board.every(v => v !== null);
-                if (tie) {
-                    // Update state to reflect the tie, and schedule the next game.
-                    state.playing = false;
-                    state.deadlineRemainingTicks = 0;
-                    state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                if (state.board[0]!=null && state.board[1]!=null) {
+                    const [winner, winningPos] = winCheck(state.board, mark);
+                    if (winner) {
+                        state.winner = winningPos;
+                        state.winnerId = null;
+
+                        for (let key in state.marks) {
+                            if (state.marks[key] == winningPos) {
+                                state.winnerId = key; 
+                                break;
+                            }
+                        }
+                        state.playing = false;
+                        state.deadlineRemainingTicks = 0;
+                        state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                        logger.debug('Winner:'+winningPos);
+
+                    }
+                    // Check if game is over because no more moves are possible.
+                    let tie = !winner;
+                    if (tie) {
+                        // Update state to reflect the tie, and schedule the next game.
+                        state.playing = false;
+                        state.deadlineRemainingTicks = 0;
+                        state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                        logger.debug('Tie:');
+
+                    }
                 }
 
                 let opCode: OpCode
@@ -306,9 +365,12 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
                     let msg: DoneMessage = {
                         board: state.board,
                         winner: state.winner,
+                        winnerId:state.winnerId,
                         nextGameStart: t + Math.floor(state.nextGameRemainingTicks/tickRate),
                     }
                     outgoingMsg = msg;
+                    logger.debug('board:',JSON.stringify(state.board));
+                    
                 }
                 dispatcher.broadcastMessage(opCode, JSON.stringify(outgoingMsg));
                 break;
@@ -342,9 +404,13 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
             let msg: DoneMessage = {
                 board: state.board,
                 winner: state.winner,
+                winnerId: state.winnerId,
+
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks/tickRate),                
             }
             dispatcher.broadcastMessage(OpCode.DONE, JSON.stringify(msg));
+        } else {
+            //logger.debug('Ticks remaining:'+ state.deadlineRemainingTicks);
         }
     }
 
