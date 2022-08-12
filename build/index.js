@@ -1,4 +1,13 @@
 "use strict";
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
 // Copyright 2020 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -149,12 +158,6 @@ var OpCode;
     // Move was rejected.
     OpCode[OpCode["REJECTED"] = 5] = "REJECTED";
 })(OpCode || (OpCode = {}));
-var Val;
-(function (Val) {
-    Val[Val["ROCK"] = 1] = "ROCK";
-    Val[Val["PAPER"] = 2] = "PAPER";
-    Val[Val["SCISSORS"] = 3] = "SCISSORS";
-})(Val || (Val = {}));
 // Copyright 2020 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -171,7 +174,7 @@ var Val;
 var moduleName = "rps_js";
 var tickRate = 1;
 var maxEmptySec = 300;
-var delaybetweenGamesSec = 5;
+var delaybetweenGamesSec = 60;
 var turnTimeFastSec = 10;
 var turnTimeNormalSec = 200;
 var matchInit = function (ctx, logger, nk, params) {
@@ -193,11 +196,14 @@ var matchInit = function (ctx, logger, nk, params) {
         boardNum: -1,
         marks: {},
         hands: {},
+        moves: {},
+        randomOrder: -1,
         deadlineRemainingTicks: 0,
         winner: null,
         winnerId: null,
         nextGameRemainingTicks: 0,
         stage: 0,
+        winnerLog: null
     };
     return {
         state: state,
@@ -241,6 +247,7 @@ var matchJoinAttempt = function (ctx, logger, nk, dispatcher, tick, state, prese
     };
 };
 var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
+    var _a;
     var t = msecToSec(Date.now());
     for (var _i = 0, presences_1 = presences; _i < presences_1.length; _i++) {
         var presence = presences_1[_i];
@@ -266,6 +273,7 @@ var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
                 board: state.board,
                 winner: state.winner,
                 winnerId: state.winnerId,
+                logs: (_a = state.winnerLog) !== null && _a !== void 0 ? _a : "",
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate)
             };
             // Send a message to the user that just joined.
@@ -291,7 +299,7 @@ var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) 
 var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
     //logger.debug('Running match loop. Tick: %d', tick);
     //logger.debug('Playing:'+state.playing);
-    var _a;
+    var _a, _b, _c, _d, _e;
     if (connectedPlayers(state) + state.joinsInProgress === 0) {
         state.emptyTicks++;
         if (state.emptyTicks >= maxEmptySec * tickRate) {
@@ -327,31 +335,43 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         // We can start a game! Set up the game state and assign the marks to each player.
         logger.debug('Starting:');
+        state.winnerLog = null;
+        var urlRules = "http://host.docker.internal/GameEngineServer/rules";
+        var headers = { 'Accept': 'application/json' };
+        var responseRules = nk.httpRequest(urlRules, 'get', headers);
+        var rules = JSON.parse(responseRules.body);
         var url = "http://host.docker.internal/GameEngineServer/hands";
         //let headers = { 'Accept': 'application/json' };
         var response = nk.httpRequest(url, 'get');
         logger.debug("requested");
         state.altmessage = response.body;
         var parsed = JSON.parse(state.altmessage);
-        logger.debug("got " + state.altmessage);
-        var hstr = parsed.left;
-        hstr = hstr.trim().substring(1, hstr.trim().length - 1);
-        var hs = hstr.split(',').map(function (x) { return parseInt(x); });
-        var lefthand = hs;
-        hstr = parsed.right;
-        hstr = hstr.trim().substring(1, hstr.trim().length - 1);
-        hs = hstr.split(',').map(function (x) { return parseInt(x); });
-        var righthand = hs;
+        var winners = JSON.stringify(parsed.winners);
+        var strat0 = JSON.stringify(parsed.strat0);
+        var strat1 = JSON.stringify(parsed.strat1);
+        var regret0 = JSON.stringify(parsed.regret0);
+        var regret1 = JSON.stringify(parsed.regret1);
+        var winnerStat0 = JSON.stringify(parsed.winner_stat0);
+        var winnerStat1 = JSON.stringify(parsed.winner_stat1);
+        logger.debug("got " + JSON.stringify(parsed));
+        var lefthand = parsed.left;
+        logger.debug("left hand " + JSON.stringify(lefthand));
+        var righthand = parsed.right;
+        logger.debug("right hand " + JSON.stringify(righthand));
         state.board = [lefthand, righthand];
         state.boardNum = parseInt(parsed.num);
         state.playing = true;
-        state.board = new Array(2);
         state.marks = {};
         var nums_1 = [0, 1];
         Object.keys(state.presences).forEach(function (userId, ind) {
+            logger.debug("state ind " + ind);
+            logger.debug("state nums " + nums_1[ind]);
+            logger.debug("state board " + state.board[ind]);
             state.marks[userId] = nums_1[ind]; //nums.shift() ?? null;
             state.hands[userId] = state.board[ind];
         });
+        logger.debug("state hands " + JSON.stringify(state.hands));
+        logger.debug("state marks " + JSON.stringify(state.marks));
         logger.debug('presences:' + JSON.stringify(state.marks));
         state.winner = null;
         state.winnerId = null;
@@ -359,10 +379,17 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         state.nextGameRemainingTicks = 0;
         var cou = -1;
         for (var key in state.marks) {
+            cou++;
             // Notify the players a new game has started.
             var msg = {
                 marks: state.marks,
                 hand: state.hands[key],
+                rules: rules,
+                number: cou,
+                winners: winners,
+                regrets: [regret0, regret1],
+                strats: [strat0, strat1],
+                winnerStats: [winnerStat0, winnerStat1],
                 deadline: t + Math.floor(state.deadlineRemainingTicks / tickRate),
             };
             var press = null;
@@ -393,10 +420,10 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                     logger.debug('Bad data receiveda: %v', error);
                     continue;
                 }
-                if (mark === null || state.board[mark]) {
-                    logger.debug('rejected' + mark);
-                    if (mark) {
-                        logger.debug('rejected' + state.board[mark]);
+                if (mark === null || state.moves[mark]) {
+                    logger.debug('rejected!' + mark);
+                    if (msg.position > 2) {
+                        logger.debug('rejected ' + msg.position);
                     }
                     // Client sent a position outside the board, or one that has already been played.
                     dispatcher.broadcastMessage(OpCode.REJECTED, null, [message.sender]);
@@ -404,35 +431,63 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 }
                 logger.debug('New position PLAYER:' + mark);
                 logger.debug('New position VALUE:' + msg.position);
+                state.moves[mark] = msg.position;
                 // Update the game state.
                 //state.board[mark] = msg.position;
                 state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
                 // Check if game is over through a winning move.
-                if (state.board[0] != null && state.board[1] != null) {
-                    var _b = winCheck(state.board, mark), winner = _b[0], winningPos = _b[1];
-                    if (winner) {
-                        state.winner = winningPos;
-                        state.winnerId = null;
-                        for (var key in state.marks) {
-                            if (state.marks[key] == winningPos) {
-                                state.winnerId = key;
-                                break;
-                            }
+                if (state.moves[0] != null && state.moves[1] != null) {
+                    var random_order = Math.floor(Math.random() * 4);
+                    state.randomOrder = random_order;
+                    logger.debug('New random value:' + state.randomOrder);
+                    var lh = __spreadArray([], (_b = state.board[0]) !== null && _b !== void 0 ? _b : [], true);
+                    var rh = __spreadArray([], (_c = state.board[1]) !== null && _c !== void 0 ? _c : [], true);
+                    lh.splice(state.moves[0], 1);
+                    rh.splice(state.moves[1], 1);
+                    switch (random_order) {
+                        case 0:
+                            break;
+                        case 1:
+                            lh = lh.reverse();
+                            break;
+                        case 2:
+                            rh = rh.reverse();
+                            break;
+                        case 3:
+                            lh = lh.reverse();
+                            rh = rh.reverse();
+                            break;
+                        default: throw Error("wrong order");
+                    }
+                    var handStr = "";
+                    var lstr = lh.reduce(function (all, one) { return all + "," + one; }, "").substring(1);
+                    var rstr = rh.reduce(function (all, one) { return all + "," + one; }, "").substring(1);
+                    handStr = lstr + "|" + rstr;
+                    logger.debug('New handStr:' + handStr);
+                    var urlRules = "http://host.docker.internal/GameEngineServer/battle?hands=" + handStr;
+                    var headers = { 'Accept': 'application/json' };
+                    var responseRules = nk.httpRequest(urlRules, 'get', headers);
+                    var battleRes = JSON.parse(responseRules.body);
+                    var winnerPos = -2;
+                    state.winner = battleRes.winner;
+                    if (state.winner == 1) {
+                        winnerPos = 1;
+                    }
+                    if (state.winner == -1) {
+                        winnerPos = 0;
+                    }
+                    state.winnerId = null;
+                    state.winnerLog = battleRes.logs;
+                    for (var key in state.marks) {
+                        if (state.marks[key] == winnerPos) {
+                            state.winnerId = key;
+                            break;
                         }
-                        state.playing = false;
-                        state.deadlineRemainingTicks = 0;
-                        state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-                        logger.debug('Winner:' + winningPos);
                     }
-                    // Check if game is over because no more moves are possible.
-                    var tie = !winner;
-                    if (tie) {
-                        // Update state to reflect the tie, and schedule the next game.
-                        state.playing = false;
-                        state.deadlineRemainingTicks = 0;
-                        state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
-                        logger.debug('Tie:');
-                    }
+                    state.playing = false;
+                    state.deadlineRemainingTicks = 0;
+                    state.nextGameRemainingTicks = delaybetweenGamesSec * tickRate;
+                    logger.debug('Winner:' + state.winner);
                 }
                 var opCode = void 0;
                 var outgoingMsg = void 0;
@@ -451,10 +506,16 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                         board: state.board,
                         winner: state.winner,
                         winnerId: state.winnerId,
+                        logs: (_d = state.winnerLog) !== null && _d !== void 0 ? _d : "",
                         nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate),
                     };
                     outgoingMsg = msg_2;
                     logger.debug('board:', JSON.stringify(state.board));
+                    state.winnerLog = null;
+                    state.winner = null;
+                    state.winnerId = null;
+                    state.marks = {};
+                    state.moves = {};
                 }
                 dispatcher.broadcastMessage(opCode, JSON.stringify(outgoingMsg));
                 break;
@@ -488,6 +549,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 board: state.board,
                 winner: state.winner,
                 winnerId: state.winnerId,
+                logs: (_e = state.winnerLog) !== null && _e !== void 0 ? _e : "",
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate),
             };
             dispatcher.broadcastMessage(OpCode.DONE, JSON.stringify(msg));

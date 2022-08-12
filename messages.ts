@@ -18,15 +18,6 @@ enum OpCode {
 	REJECTED = 5
 }
 
-enum Val {
-
-	ROCK = 1,
-
-	PAPER = 2,
-
-	SCISSORS = 3,
-
-}
 
 type Message = StartMessage|UpdateMessage|DoneMessage|MoveMessage|RpcFindMatchRequest|RpcFindMatchResponse
 type Board = (Hand|null)[]
@@ -38,9 +29,13 @@ type Hand = (number)[]
 interface StartMessage {    
     // The assignments of the marks to players for this round.
     marks: {[userID: string]: number|null},
-
+    rules:{string:string}
+    winners:string,
+    strats:string[],
+    regrets:string[],
+    number:number,
+    winnerStats: string[],
     hand: Hand|null
-
     // The deadline time by which the player must submit their move, or forfeit.
     deadline: number
 }
@@ -64,12 +59,13 @@ interface DoneMessage {
     winnerId: string | null    
     // Next round start time.
     nextGameStart: number
+    logs: string
 }
 
 // A player intends to make a move.
 interface MoveMessage {
     // The position the player wants to place their mark in.
-    position: Val;
+    position: number;
 }
 
 // Payload for an RPC request to find a match.

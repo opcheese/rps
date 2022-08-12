@@ -3,20 +3,33 @@ import './App.css';
 import { useState, useEffect } from "react";
 import nakama from './nakama';
 import Button from '@mui/material/Button';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 
 
 function App() {
   const [lastMove, setLastMove] = useState("None")
   const [myId, setMyId] = useState("None")
+  const [myNumber, setMyNumber] = useState("None")
+
   const [stateName, setStateName] = useState("None")
   const [result, setResult] = useState("None")
   const [hand,setHand] = useState("None")
+
+  const [winners,setWinners] = useState("None")
+  const [strat,setStrats] = useState("None")
+  const [regrets,setRegrets] = useState("None")
+  const [winnerStat,setWinnerStat] = useState("None")
+  const [winnerLog,setWinnerLog] = useState("None")
+
+
+
 
 
 
   useEffect(() => {
     async function authenticate() {
-      const user_id = await nakama.authenticate();
+      const user_id = await nakama.authenticate();      
       setMyId(user_id);
       console.log('use socket')
       nakama.socket.onmatchdata = (result) => {
@@ -25,10 +38,28 @@ function App() {
         console.log(res)
         res = JSON.parse(res)
 
+
         switch (result.op_code) {
           case 1:
+            let number = parseInt(res.number)
+            let winners = res.winners;
+            let strat = res.strats[number];
+            let regrets = res.regrets[number];
+            let wstats = res.winnerStats[number];
+    
+            setWinners(winners);
+            setStrats(strat);
+            setRegrets(regrets);
+            setWinnerStat(wstats)
             console.log(1)
             setStateName("Start")
+            let resval = "";
+            
+            for (let key of res.hand) {
+              resval+=res["rules"][key]+"|"
+            }
+            setHand(resval);
+            setMyNumber(number)
             break;
           case 2:
             console.log(2)
@@ -38,7 +69,8 @@ function App() {
           case 3:
             console.log(3)
             setStateName("DONE")
-            setHand(JSON.stringify(res.board))
+            let wl1 = res.logs;
+            setWinnerLog(JSON.stringify(wl1));
             if (res.winnerId == user_id) {
               setResult("Win!")
             } else {
@@ -85,25 +117,35 @@ function App() {
         <p>
           Id:{myId}
         </p>
+        Number:{myNumber}
         <p>
           State:{stateName}
         </p>
-        <Button variant="contained" onClick={findMatch}>Connect</Button>
-        <Button variant="contained" onClick={() => move(1)}>Rock</Button>
-        <Button variant="contained" onClick={() => move(2)}>Paper</Button>
-        <Button variant="contained" onClick={() => move(3)}>Scissors</Button>
-
-        <p>
-          {lastMove}
-        </p>
-
-        <p>
-          {result}
-        </p>
-
+        <Stack direction="row">
+          <Button variant="contained" onClick={findMatch}>Connect</Button>
+          <Button variant="contained" onClick={() => move(1)}>1</Button>
+          <Button variant="contained" onClick={() => move(2)}>2</Button>
+          <Button variant="contained" onClick={() => move(3)}>3</Button>
+        </Stack>
         <p>
           {hand}
         </p>
+        <Typography>
+          WinnerStats: {winnerStat} <br/>
+          Winners: {winners} <br/>
+          Strats: {strat} <br/>
+          Regrets: {regrets} <br/>
+        </Typography>
+        
+        
+        
+        <p>
+          {result}
+        </p>
+        <Typography>
+          WinnerLog: {winnerLog} <br/>
+        </Typography>
+        
 
       </header>
     </div>
