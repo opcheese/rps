@@ -15,7 +15,7 @@
 const moduleName = "rps_js";
 const tickRate = 1;
 const maxEmptySec = 300;
-const delaybetweenGamesSec = 60;
+const delaybetweenGamesSec = 6000000;
 const turnTimeFastSec = 10;
 const turnTimeNormalSec = 200;
 //import { SyncRequestClient } from 'ts-sync-request/dist'
@@ -198,7 +198,7 @@ let matchLeave: nkruntime.MatchLeaveFunction<State> = function(ctx: nkruntime.Co
         logger.info("Player: %s left match: %s.", presence.userId, ctx.matchId);
         state.presences[presence.userId] = null;
     }
-
+    return null;
     return {state};
 }
 

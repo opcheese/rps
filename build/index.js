@@ -174,7 +174,7 @@ var OpCode;
 var moduleName = "rps_js";
 var tickRate = 1;
 var maxEmptySec = 300;
-var delaybetweenGamesSec = 60;
+var delaybetweenGamesSec = 6000000;
 var turnTimeFastSec = 10;
 var turnTimeNormalSec = 200;
 var matchInit = function (ctx, logger, nk, params) {
@@ -294,6 +294,7 @@ var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) 
         logger.info("Player: %s left match: %s.", presence.userId, ctx.matchId);
         state.presences[presence.userId] = null;
     }
+    return null;
     return { state: state };
 };
 var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
