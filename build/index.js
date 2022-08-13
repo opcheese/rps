@@ -174,7 +174,7 @@ var OpCode;
 var moduleName = "rps_js";
 var tickRate = 1;
 var maxEmptySec = 300;
-var delaybetweenGamesSec = 6000000;
+var delaybetweenGamesSec = 25;
 var turnTimeFastSec = 10;
 var turnTimeNormalSec = 200;
 var matchInit = function (ctx, logger, nk, params) {

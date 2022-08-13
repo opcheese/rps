@@ -15,7 +15,7 @@
 const moduleName = "rps_js";
 const tickRate = 1;
 const maxEmptySec = 300;
-const delaybetweenGamesSec = 6000000;
+const delaybetweenGamesSec = 25;
 const turnTimeFastSec = 10;
 const turnTimeNormalSec = 200;
 //import { SyncRequestClient } from 'ts-sync-request/dist'

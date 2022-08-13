@@ -97,6 +97,10 @@ function Game() {
     await nakama.findMatch();
   }
 
+  const quitMatch = async function(){
+    await nakama.leaveMatch();
+  }
+
   const move = async function (val) {
     // switch (val) {
     //   case 1: setLastMove("Rock"); break;
@@ -124,6 +128,7 @@ function Game() {
         <Button variant="contained" onClick={() => move(1)}>2</Button>
         <Button variant="contained" onClick={() => move(2)}>3</Button>
       </Stack>
+        <Button variant="contained" onClick={quitMatch}>Quit Match</Button>
       <p>
         {hand}
       </p>

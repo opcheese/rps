@@ -46,6 +46,10 @@ class Nakama {
         await this.socket.sendMatchState(this.matchID, 4, JSON.stringify(data));
         console.log("Match data sent")
     }
+
+    async leaveMatch() {
+        await this.socket.LeaveMatchAsync(this.matchId);
+    }
 }
 
 export default new Nakama()
