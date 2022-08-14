@@ -6,6 +6,7 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import LogViewer from './LogViewer';
+window.dagame = {}
 
 function Game() {
   const [lastMove, setLastMove] = useState("None")
@@ -42,13 +43,15 @@ function Game() {
             let strat = res.strats[number];
             let regrets = res.regrets[number];
             let wstats = res.winnerStats[number];
-    
+            window.dagame.strat = strat
             setWinners(winners);
             setStrats(strat);
             setRegrets(regrets);
             setWinnerStat(wstats)
             console.log(1)
+            window.dagame.state = "Start"            
             setStateName("Start")
+
             let resval = "";
             
             for (let key of res.hand) {
@@ -64,6 +67,7 @@ function Game() {
             break;
           case 3:
             console.log(3)
+            window.dagame.state = "Done"
             setStateName("DONE")
             let wl1 = res.logs??{};
             setWinnerLog(wl1);
@@ -118,15 +122,15 @@ function Game() {
         Id:{myId}
       </p>
       Number:{myNumber}
-      <p>
+      <p id="pState">
         State:{stateName}
       </p>
     
       <Stack direction="row">
-        <Button variant="contained" onClick={findMatch}>Connect</Button>
-        <Button variant="contained" onClick={() => move(0)}>1</Button>
-        <Button variant="contained" onClick={() => move(1)}>2</Button>
-        <Button variant="contained" onClick={() => move(2)}>3</Button>
+        <Button id="btnConnect" variant="contained" onClick={findMatch}>Connect</Button>
+        <Button id="btnOne" variant="contained" onClick={() => move(0)}>1</Button>
+        <Button id="btnTwo" variant="contained" onClick={() => move(1)}>2</Button>
+        <Button id="btnThree" variant="contained" onClick={() => move(2)}>3</Button>
       </Stack>
         <Button variant="contained" onClick={quitMatch}>Quit Match</Button>
       <p>
