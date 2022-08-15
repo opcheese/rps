@@ -252,11 +252,11 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
         // We can start a game! Set up the game state and assign the marks to each player.
         logger.debug('Starting:');        
         state.winnerLog = null;
-        let urlRules = "http://host.docker.internal/GameEngineServer/rules";
+        let urlRules = "http://host.docker.internal:8000/GameEngineServer/rules";
         let headers = { 'Accept': 'application/json' };
         let responseRules = nk.httpRequest(urlRules, 'get',headers);
         let rules = JSON.parse(responseRules.body);
-        let url = "http://host.docker.internal/GameEngineServer/hands";
+        let url = "http://host.docker.internal:8000/GameEngineServer/hands";
         //let headers = { 'Accept': 'application/json' };
         let response = nk.httpRequest(url, 'get');
         logger.debug("requested");        
@@ -407,7 +407,7 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
                     handStr = lstr+"|"+rstr;
                     logger.debug('New handStr:'+handStr );
                     
-                    let urlRules = "http://host.docker.internal/GameEngineServer/battle?hands="+handStr;
+                    let urlRules = "http://host.docker.internal:8000/GameEngineServer/battle?hands="+handStr;
                     let headers = { 'Accept': 'application/json' };
                     let responseRules = nk.httpRequest(urlRules, 'get',headers);
                     let battleRes = JSON.parse(responseRules.body);                    
