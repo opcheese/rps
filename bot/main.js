@@ -6,18 +6,20 @@ const puppeteer = require('puppeteer');
   await page.goto('http://localhost:3000/',{waitUntil: 'networkidle2',});
   await page.click('[id="btnConnect"]')
   await page.screenshot({path: 'example1.png'});
+  while (true)   {
+    await page.waitForFunction(
+      'document.querySelector("#pState").innerText.toLowerCase().trim().includes("start")',
+    );
+    await page.screenshot({path: 'example2.png'});
 
-  await page.waitForFunction(
-    'document.querySelector("#pState").innerText.toLowerCase().trim().includes("start")',
-  );
-  await page.screenshot({path: 'example2.png'});
+    await page.click('[id="btnOne"]')
 
-  await page.click('[id="btnOne"]')
-
-  await page.waitForFunction(
-    'document.querySelector("#pState").innerText.toLowerCase().trim().includes("done")',
-  );
-  await page.screenshot({path: 'example3.png'});
+    await page.waitForFunction(
+      'document.querySelector("#pState").innerText.toLowerCase().trim().includes("done")',
+    );
+    await page.screenshot({path: 'example3.png'});
+  }
+  
 
   await browser.close();
 })();

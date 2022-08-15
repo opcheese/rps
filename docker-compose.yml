@@ -47,5 +47,14 @@ services:
       - "7351:7351"
     restart: unless-stopped
 
+  client:
+    build: ./client2
+    volumes:
+      - /app/node_modules
+      - ./client2/src:/app/src
+    ports:
+      - 3000:3000
+    stdin_open: true
+
 volumes:
   data:
