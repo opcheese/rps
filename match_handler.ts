@@ -15,7 +15,7 @@
 const moduleName = "rps_js";
 const tickRate = 1;
 const maxEmptySec = 300;
-const delaybetweenGamesSec = 25;
+const delaybetweenGamesSec = 5;
 const turnTimeFastSec = 10;
 const turnTimeNormalSec = 200;
 //import { SyncRequestClient } from 'ts-sync-request/dist'
@@ -264,8 +264,9 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
         state.altmessage = response.body;  
         let parsed = JSON.parse(state.altmessage);
         let winners = JSON.stringify(parsed.winners);
-        let strat0 = JSON.stringify(parsed.strat0);
-        let strat1 = JSON.stringify(parsed.strat1);
+        let strat0 = parsed.strat0;
+        //logger.debug("got 1:" + strat0);   
+        let strat1 = parsed.strat1;
         let regret0 = JSON.stringify(parsed.regret0);
         let regret1 = JSON.stringify(parsed.regret1);
         let winnerStat0 = JSON.stringify(parsed.winner_stat0);

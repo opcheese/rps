@@ -174,7 +174,7 @@ var OpCode;
 var moduleName = "rps_js";
 var tickRate = 1;
 var maxEmptySec = 300;
-var delaybetweenGamesSec = 25;
+var delaybetweenGamesSec = 5;
 var turnTimeFastSec = 10;
 var turnTimeNormalSec = 200;
 var matchInit = function (ctx, logger, nk, params) {
@@ -337,19 +337,20 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         // We can start a game! Set up the game state and assign the marks to each player.
         logger.debug('Starting:');
         state.winnerLog = null;
-        var urlRules = "http://host.docker.internal/GameEngineServer/rules";
+        var urlRules = "http://host.docker.internal:8000/GameEngineServer/rules";
         var headers = { 'Accept': 'application/json' };
         var responseRules = nk.httpRequest(urlRules, 'get', headers);
         var rules = JSON.parse(responseRules.body);
-        var url = "http://host.docker.internal/GameEngineServer/hands";
+        var url = "http://host.docker.internal:8000/GameEngineServer/hands";
         //let headers = { 'Accept': 'application/json' };
         var response = nk.httpRequest(url, 'get');
         logger.debug("requested");
         state.altmessage = response.body;
         var parsed = JSON.parse(state.altmessage);
         var winners = JSON.stringify(parsed.winners);
-        var strat0 = JSON.stringify(parsed.strat0);
-        var strat1 = JSON.stringify(parsed.strat1);
+        var strat0 = parsed.strat0;
+        //logger.debug("got 1:" + strat0);   
+        var strat1 = parsed.strat1;
         var regret0 = JSON.stringify(parsed.regret0);
         var regret1 = JSON.stringify(parsed.regret1);
         var winnerStat0 = JSON.stringify(parsed.winner_stat0);
@@ -465,7 +466,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                     var rstr = rh.reduce(function (all, one) { return all + "," + one; }, "").substring(1);
                     handStr = lstr + "|" + rstr;
                     logger.debug('New handStr:' + handStr);
-                    var urlRules = "http://host.docker.internal/GameEngineServer/battle?hands=" + handStr;
+                    var urlRules = "http://host.docker.internal:8000/GameEngineServer/battle?hands=" + handStr;
                     var headers = { 'Accept': 'application/json' };
                     var responseRules = nk.httpRequest(urlRules, 'get', headers);
                     var battleRes = JSON.parse(responseRules.body);

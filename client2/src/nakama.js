@@ -10,7 +10,9 @@ class Nakama {
     }
 
     async authenticate() {
-        this.client = new Client("defaultkey", process.env.REACT_APP_NAKAMA_URL, "7350");
+        
+        console.log("1222222223")
+        this.client = new Client("defaultkey","nakama.ludentes.ru", "7350");
         this.client.ssl = false;
 
         let deviceId = localStorage.getItem("deviceId");
@@ -27,6 +29,7 @@ class Nakama {
         this.socket = this.client.createSocket(this.useSSL, trace);
         console.log("set socket")
         await this.socket.connect(this.session);
+        console.log("socket connected")
         return this.session.user_id;
 
     }

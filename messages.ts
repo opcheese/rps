@@ -31,7 +31,7 @@ interface StartMessage {
     marks: {[userID: string]: number|null},
     rules:{string:string}
     winners:string,
-    strats:string[],
+    strats:number[][],
     regrets:string[],
     number:number,
     winnerStats: string[],

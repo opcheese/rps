@@ -40,7 +40,7 @@ function Game() {
           case 1:
             let number = parseInt(res.number)
             let winners = res.winners;
-            let strat = res.strats[number];
+            let strat = res.strats[number].map(x=>x.toFixed(2).toString() +",  ");
             let regrets = res.regrets[number];
             let wstats = res.winnerStats[number];
             window.dagame.strat = strat
@@ -70,6 +70,7 @@ function Game() {
             window.dagame.state = "Done"
             setStateName("DONE")
             let wl1 = res.logs??{};
+            setMyNumber("None")
             setWinnerLog(wl1);
             if (res.winnerId == user_id) {
               setResult("Win!")
