@@ -10,7 +10,7 @@ class Nakama {
     }
 
     async authenticate() {
-        this.client = new Client("defaultkey", "localhost", "7350");
+        this.client = new Client("defaultkey", process.env.REACT_APP_NAKAMA_URL, "7350");
         this.client.ssl = false;
 
         let deviceId = localStorage.getItem("deviceId");
