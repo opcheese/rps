@@ -45,6 +45,7 @@ interface State {
     // Mark assignments to player user IDs.
     marks: {[userId: string]: number | null}
     hands: {[userId: string]: Hand | null}
+    actualMoves:number[]
 
    
     // Ticks until they must submit their move.
@@ -87,6 +88,7 @@ let matchInit: nkruntime.MatchInitFunction<State> = function (ctx: nkruntime.Con
         marks: {},
         hands:{},
         moves:{},
+        actualMoves:[],
         randomOrder:-1,
         deadlineRemainingTicks: 0,
         winner: null,
@@ -172,7 +174,9 @@ let matchJoin: nkruntime.MatchJoinFunction<State> = function(ctx: nkruntime.Cont
                 board: state.board,
                 winner: state.winner,    
                 winnerId: state.winnerId,
-                logs: state.winnerLog??"",            
+                logs: state.winnerLog??"",
+                order:state.randomOrder,
+                moves:state.actualMoves,            
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks/tickRate)
             }
             // Send a message to the user that just joined.
@@ -263,14 +267,14 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
 
         state.altmessage = response.body;  
         let parsed = JSON.parse(state.altmessage);
-        let winners = JSON.stringify(parsed.winners);
+        let winners =parsed.winners;
         let strat0 = parsed.strat0;
         //logger.debug("got 1:" + strat0);   
         let strat1 = parsed.strat1;
         let regret0 = JSON.stringify(parsed.regret0);
         let regret1 = JSON.stringify(parsed.regret1);
-        let winnerStat0 = JSON.stringify(parsed.winner_stat0);
-        let winnerStat1 = JSON.stringify(parsed.winner_stat1);
+        let winnerStat0 = parsed.winner_stat0;
+        let winnerStat1 = parsed.winner_stat1;
 
 
         logger.debug("got " +JSON.stringify(parsed));       
@@ -379,6 +383,7 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
 
                 // Check if game is over through a winning move.
                 if (state.moves[0]!=null && state.moves[1]!=null) {
+                    state.actualMoves = [state.moves[0],state.moves[1]]
                     let random_order = Math.floor(Math.random() * 4);
                     state.randomOrder = random_order;
                     logger.debug('New random value:'+state.randomOrder );
@@ -451,6 +456,8 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
                         board: state.board,
                         winner: state.winner,
                         winnerId:state.winnerId,
+                        moves:state.actualMoves,
+                        order:state.randomOrder,
                         logs: state.winnerLog??"",
                         nextGameStart: t + Math.floor(state.nextGameRemainingTicks/tickRate),
                     }
@@ -497,6 +504,8 @@ let matchLoop: nkruntime.MatchLoopFunction<State> = function(ctx: nkruntime.Cont
                 board: state.board,
                 winner: state.winner,
                 winnerId: state.winnerId,
+                moves:state.actualMoves,
+                order:state.randomOrder,
                 logs: state.winnerLog??"",
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks/tickRate),                
             }

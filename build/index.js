@@ -197,6 +197,7 @@ var matchInit = function (ctx, logger, nk, params) {
         marks: {},
         hands: {},
         moves: {},
+        actualMoves: [],
         randomOrder: -1,
         deadlineRemainingTicks: 0,
         winner: null,
@@ -274,6 +275,8 @@ var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
                 winner: state.winner,
                 winnerId: state.winnerId,
                 logs: (_a = state.winnerLog) !== null && _a !== void 0 ? _a : "",
+                order: state.randomOrder,
+                moves: state.actualMoves,
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate)
             };
             // Send a message to the user that just joined.
@@ -347,14 +350,14 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         logger.debug("requested");
         state.altmessage = response.body;
         var parsed = JSON.parse(state.altmessage);
-        var winners = JSON.stringify(parsed.winners);
+        var winners = parsed.winners;
         var strat0 = parsed.strat0;
         //logger.debug("got 1:" + strat0);   
         var strat1 = parsed.strat1;
         var regret0 = JSON.stringify(parsed.regret0);
         var regret1 = JSON.stringify(parsed.regret1);
-        var winnerStat0 = JSON.stringify(parsed.winner_stat0);
-        var winnerStat1 = JSON.stringify(parsed.winner_stat1);
+        var winnerStat0 = parsed.winner_stat0;
+        var winnerStat1 = parsed.winner_stat1;
         logger.debug("got " + JSON.stringify(parsed));
         var lefthand = parsed.left;
         logger.debug("left hand " + JSON.stringify(lefthand));
@@ -439,6 +442,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 state.deadlineRemainingTicks = calculateDeadlineTicks(state.label);
                 // Check if game is over through a winning move.
                 if (state.moves[0] != null && state.moves[1] != null) {
+                    state.actualMoves = [state.moves[0], state.moves[1]];
                     var random_order = Math.floor(Math.random() * 4);
                     state.randomOrder = random_order;
                     logger.debug('New random value:' + state.randomOrder);
@@ -508,6 +512,8 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                         board: state.board,
                         winner: state.winner,
                         winnerId: state.winnerId,
+                        moves: state.actualMoves,
+                        order: state.randomOrder,
                         logs: (_d = state.winnerLog) !== null && _d !== void 0 ? _d : "",
                         nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate),
                     };
@@ -551,6 +557,8 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 board: state.board,
                 winner: state.winner,
                 winnerId: state.winnerId,
+                moves: state.actualMoves,
+                order: state.randomOrder,
                 logs: (_e = state.winnerLog) !== null && _e !== void 0 ? _e : "",
                 nextGameStart: t + Math.floor(state.nextGameRemainingTicks / tickRate),
             };

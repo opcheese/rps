@@ -3,7 +3,7 @@ const puppeteer = require('puppeteer');
 (async () => {
   const browser = await puppeteer.launch({headless:true});
   const page = await browser.newPage();
-  await page.goto('http://localhost:3000/',{waitUntil: 'networkidle2',});
+  await page.goto('http://nakama.ludentes.ru',{waitUntil: 'networkidle2',});
   await page.click('[id="btnConnect"]')
   await page.screenshot({path: 'example1.png'});
   while (true)   {

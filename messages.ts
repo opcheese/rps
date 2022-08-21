@@ -30,7 +30,7 @@ interface StartMessage {
     // The assignments of the marks to players for this round.
     marks: {[userID: string]: number|null},
     rules:{string:string}
-    winners:string,
+    winners:{string:number[]},
     strats:number[][],
     regrets:string[],
     number:number,
@@ -57,8 +57,11 @@ interface DoneMessage {
     // The winner of the game, if any. Unspecified if it's a draw.
     winner: number | null
     winnerId: string | null    
+    order: number
+    moves:number[]
     // Next round start time.
     nextGameStart: number
+
     logs: string
 }
 

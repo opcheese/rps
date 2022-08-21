@@ -18,6 +18,11 @@ function Game() {
   const [hand,setHand] = useState("None")
 
   const [winners,setWinners] = useState("None")
+  const [winnersObj,setWinnersObj] = useState({})
+  const [order,setOrder] = useState(-1)
+  const [winnerMessage,setWinnersMessage] = useState("None")
+
+  
   const [strat,setStrats] = useState("None")
   const [regrets,setRegrets] = useState("None")
   const [winnerStat,setWinnerStat] = useState("None")
@@ -26,7 +31,8 @@ function Game() {
 
   useEffect(() => {
     async function authenticate() {
-      const user_id = await nakama.authenticate();      
+      const user_id = await nakama.authenticate();    
+      var winnerObj = {};  
       setMyId(user_id);
       console.log('use socket')
       nakama.socket.onmatchdata = (result) => {
@@ -39,15 +45,17 @@ function Game() {
         switch (result.op_code) {
           case 1:
             let number = parseInt(res.number)
-            let winners = res.winners;
+            let winners = JSON.stringify(res.winners);
+            winnerObj = res.winners;
             let strat = res.strats[number].map(x=>x.toFixed(2).toString() +",  ");
             let regrets = res.regrets[number];
-            let wstats = res.winnerStats[number];
+            let wstats = res.winnerStats[number].map(x=>x.toString()+",");
             window.dagame.strat = strat
             setWinners(winners);
             setStrats(strat);
             setRegrets(regrets);
-            setWinnerStat(wstats)
+            setWinnerStat(wstats);
+            setWinnersObj(winnerObj);
             console.log(1)
             window.dagame.state = "Start"            
             setStateName("Start")
@@ -66,9 +74,9 @@ function Game() {
 
             break;
           case 3:
-            console.log(3)
-            window.dagame.state = "Done"
-            setStateName("DONE")
+            console.log(3);
+            window.dagame.state = "Done";
+            setStateName("DONE");
             let wl1 = res.logs??{};
             setMyNumber("None")
             setWinnerLog(wl1);
@@ -77,6 +85,21 @@ function Game() {
             } else {
               setResult("Loss!")
             }
+
+            let order = res.order;
+            setOrder(order)
+            let moves = res.moves;
+            let movesKey = "("+ moves[0]+", " + moves[1]+")";
+            let mv = winnerObj[movesKey].map((x,ind)=>
+            {
+              if (ind == order) {
+                return <span> <strong>{x+","}</strong></span>
+              }
+              return <span> {x+","}</span>
+            });
+
+            setWinnersMessage(mv)
+
             break;
           case 4:
             console.log(4)
@@ -143,6 +166,8 @@ function Game() {
         Winners: {winners} <br/>
         Strats: {strat} <br/>
         Regrets: {regrets} <br/>
+        Result: {winnerMessage} <br/>
+        Order: {order} <br/>
       </Typography>
       
       
